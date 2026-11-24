@@ -18,11 +18,49 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+soong_config_module_type {
+    name: "libdmabufheap_libion_export_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "libion",
+    bool_variables: ["legacy_impl"],
+    properties: ["export_static_lib_headers"],
+}
+
+libdmabufheap_libion_export_defaults {
+    name: "libdmabufheap_libion_export_defaults",
+    soong_config_variables: {
+        legacy_impl: {
+            export_static_lib_headers: [
+                "libbase",
+                "libion",
+            ],
+            conditions_default: {
+                export_static_lib_headers: ["libbase"],
+            },
+        },
+    },
+}
+
+// Gated on the same "libion.legacy_impl" soong config variable as libion (which
+// declares it). Opt in to the legacy ION-backed implementation from a device
+// tree with:
+//
+//     $(call soong_config_set_bool,libion,legacy_impl,true)
+//
+// When unset (the default) libdmabufheap is built without ION support,
+// matching upstream.
 cc_library {
-    srcs: [
-        "BufferAllocator.cpp",
-        "BufferAllocatorWrapper.cpp",
-    ],
+    defaults: ["libdmabufheap_libion_export_defaults"],
+    srcs: select(soong_config_variable("libion", "legacy_impl"), {
+        true: [
+            "BufferAllocator_legacy.cpp",
+            "BufferAllocatorWrapper_legacy.cpp",
+        ],
+        default: [
+            "BufferAllocator.cpp",
+            "BufferAllocatorWrapper.cpp",
+        ],
+    }),
     name: "libdmabufheap",
     recovery_available: true,
     vendor_available: true,
@@ -39,20 +77,22 @@ cc_library {
         "-Wall",
         "-Werror",
     ],
-    local_include_dirs: [
-        "include",
-    ],
-    export_include_dirs: [
-        "include",
-    ],
+    local_include_dirs: select(soong_config_variable("libion", "legacy_impl"), {
+        true: ["include_legacy"],
+        default: ["include"],
+    }),
+    export_include_dirs: select(soong_config_variable("libion", "legacy_impl"), {
+        true: ["include_legacy"],
+        default: ["include"],
+    }),
     static_libs: [
         "libbase",
-    ],
+    ] + select(soong_config_variable("libion", "legacy_impl"), {
+        true: ["libion"],
+        default: [],
+    }),
     shared_libs: [
         "liblog",
-    ],
-    export_static_lib_headers: [
-        "libbase",
     ],
 }
 
